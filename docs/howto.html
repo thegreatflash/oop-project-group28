@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>How to Run — Group 28</title>
+<style>
+  @page { size: A4; margin: 2cm 1.9cm; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 11pt;
+         color: #1a1a1a; line-height: 1.5; margin: 0; }
+  h1 { font-size: 20pt; margin: 0 0 2px; }
+  .sub { color: #555; font-size: 11pt; margin-bottom: 18px; }
+  h2 { font-size: 13.5pt; margin: 20px 0 6px; border-bottom: 1.5px solid #333;
+       padding-bottom: 3px; }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0 8px; padding-left: 22px; }
+  li { margin: 3px 0; }
+  code { font-family: "Courier New", monospace; font-size: 10pt; background: #f3f3f3; padding: 0 3px; }
+  pre { font-family: "Courier New", monospace; font-size: 10pt; background: #f4f4f4;
+        border: 1px solid #ddd; padding: 9px 11px; white-space: pre-wrap; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10pt; }
+  th, td { border: 1px solid #999; padding: 4px 8px; text-align: left; }
+  th { background: #eee; }
+</style>
+</head>
+<body>
+
+<h1>How to Run</h1>
+<div class="sub">Competition Leaderboard System · Group 28 · CS F213 (OOP)<br>
+Repository: https://github.com/thegreatflash/oop-project-group28</div>
+
+<h2>Requirements</h2>
+<ul>
+<li>JDK 21 or newer (check with <code>java -version</code>)</li>
+<li>Maven is <b>not</b> required — the included Maven wrapper (<code>mvnw</code>)
+downloads it automatically on first use</li>
+</ul>
+
+<h2>Run locally</h2>
+<pre>git clone https://github.com/thegreatflash/oop-project-group28
+cd oop-project-group28
+./mvnw spring-boot:run</pre>
+<p>Wait for <code>Started LeaderboardApplication</code>, then open
+<b>http://localhost:8080</b> in a browser. Run the command from the project root
+so the <code>data/</code> folder is found. Stop the server with Ctrl+C (scores
+are saved on shutdown and restored on the next start).</p>
+<p>On Windows, use <code>mvnw.cmd spring-boot:run</code> instead of
+<code>./mvnw</code>.</p>
+
+<h2>Sign in</h2>
+<table>
+<tr><th>Username</th><th>Password</th><th>Role</th><th>Can open</th></tr>
+<tr><td>participant1 … participant3</td><td>1234</td><td>Participant</td><td>Home, Leaderboard</td></tr>
+<tr><td>judge1 … judge3</td><td>1234</td><td>Judge</td><td>+ Judge page (submit scores)</td></tr>
+<tr><td>admin</td><td>1234</td><td>Admin</td><td>+ Admin page (reset, export, simulator)</td></tr>
+</table>
+
+<h2>Run in the cloud (no local setup)</h2>
+<ol>
+<li>On the GitHub repository page click <b>Code → Codespaces → Create codespace
+on main</b> (Java 21 is provisioned automatically).</li>
+<li>In the Codespace terminal run <code>./mvnw spring-boot:run</code>.</li>
+<li>Click the popup for forwarded port <b>8080</b> to open the app in a browser tab.</li>
+</ol>
+
+<h2>Run the unit tests</h2>
+<pre>./mvnw test</pre>
+<p>Expected result: <code>Tests run: 20, Failures: 0, Errors: 0</code> and
+<code>BUILD SUCCESS</code>.</p>
+
+<h2>Suggested demo flow</h2>
+<ol>
+<li>Sign in as <code>admin</code> → <b>Admin</b> tab → <b>Start Simulator</b>
+(submits a random judge score about every 0.4 s across all competitions).</li>
+<li>Open the <b>Leaderboard</b> tab and watch the rankings reorder live; the
+table refreshes automatically every 3 seconds.</li>
+<li>Switch the <b>Show</b> selector to <i>Top 5</i> to see the O(k) Top-K view.</li>
+<li>Sign in as <code>judge1</code> in another window and submit a score
+manually — try an invalid one (e.g. 150) to see validation reject it.</li>
+<li>On the Admin tab, <b>Export to CSV</b> writes the standings to
+<code>data/&lt;competition&gt;_leaderboard.csv</code>.</li>
+</ol>
+
+</body>
+</html>

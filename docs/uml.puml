@@ -1,0 +1,144 @@
+@startuml
+title Competition Leaderboard - Class Diagram
+
+abstract class Person {
+  - id : String
+  - name : String
+  + getId() : String
+  + getName() : String
+  + {abstract} getRole() : String
+}
+
+class Participant {
+  + getRole() : String
+}
+
+class Judge {
+  + getRole() : String
+}
+
+class Competition {
+  - id : String
+  - name : String
+  - participants : Map<String, Participant>
+  + addParticipant(p : Participant)
+  + getParticipant(id : String) : Participant
+  + getLeaderboard() : Leaderboard<Participant>
+}
+
+class "Score <<record>>" as Score {
+  + competitionId : String
+  + participantId : String
+  + judgeName : String
+  + value : double
+}
+
+class "Leaderboard<T extends Person>" as Leaderboard {
+  - judgeScores : ConcurrentHashMap<T, Map<String, Double>>
+  - ordered : ConcurrentSkipListMap<RankKey, T>
+  + addEntrant(entrant : T)
+  + addScore(entrant : T, judgeName : String, value : double)
+  + getScore(entrant : T) : double
+  + getRankings() : List<Ranking<T>>
+  + getTopK(k : int) : List<Ranking<T>>
+  + reset()
+}
+
+class "RankKey <<record>>" as RankKey {
+  + score : double
+  + name : String
+  + id : String
+}
+Leaderboard +-- RankKey
+
+class "Ranking<T> <<record>>" as Ranking {
+  + rank : int
+  + entrant : T
+  + score : double
+}
+
+class LeaderboardManager {
+  - competitions : Map<String, Competition>
+  - judges : List<Judge>
+  - changes : PropertyChangeSupport
+  + applyScore(score : Score)
+  + resetScores(competition : Competition)
+  + addListener(l : PropertyChangeListener)
+}
+
+class ScoreProcessor {
+  - pool : ExecutorService
+  + submit(score : Score)
+  + shutdown()
+}
+
+class ScoreSimulator {
+  - timer : ScheduledExecutorService
+  + start()
+  + stop()
+}
+
+class InvalidScoreException
+
+class CSVManager {
+  + {static} loadCompetitions(file : Path) : List<Competition>
+  + {static} loadJudges(file : Path) : List<Judge>
+  + {static} exportLeaderboard(c : Competition, file : Path)
+  + {static} saveTotals(competitions : List<Competition>, file : Path)
+  + {static} loadTotals(manager : LeaderboardManager, file : Path)
+}
+
+class LeaderboardApplication {
+  + main(args : String[])
+}
+
+class LeaderboardService {
+  - manager : LeaderboardManager
+  - processor : ScoreProcessor
+  - simulator : ScoreSimulator
+  + submitScore(...)
+  + getRankings(competitionId : String) : List<Ranking<Participant>>
+  + reset(competitionId : String)
+  + toggleSimulator() : boolean
+}
+
+class PageController {
+  + home(model) : String
+  + leaderboard(...) : String
+  + leaderboardData(competition : String, top : Integer) : LeaderboardData
+  + submitScore(...) : String
+}
+
+class SecurityConfig {
+  + filterChain(http : HttpSecurity) : SecurityFilterChain
+  + users(encoder : PasswordEncoder) : UserDetailsService
+  + passwordEncoder() : PasswordEncoder
+}
+
+Person <|-- Participant
+Person <|-- Judge
+
+Competition "1" *-- "1" Leaderboard
+Competition "1" o-- "*" Participant
+Leaderboard ..> Ranking : produces
+
+LeaderboardManager "1" o-- "*" Competition
+LeaderboardManager "1" o-- "*" Judge
+LeaderboardManager ..> Score : applies
+
+ScoreProcessor --> LeaderboardManager
+ScoreProcessor ..> InvalidScoreException : throws
+ScoreSimulator --> ScoreProcessor
+
+CSVManager ..> Competition : loads
+CSVManager ..> Judge : loads
+
+LeaderboardApplication ..> PageController
+SecurityConfig ..> PageController : guards routes of
+PageController --> LeaderboardService
+LeaderboardService --> LeaderboardManager
+LeaderboardService --> ScoreProcessor
+LeaderboardService --> ScoreSimulator
+LeaderboardService ..> CSVManager
+
+@enduml

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Group 28 — CS F213 OOP Project Report</title>
+<style>
+  @page { size: A4; margin: 2cm 1.8cm; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5pt;
+         color: #1a1a1a; line-height: 1.45; margin: 0; }
+  h1 { font-size: 19pt; margin: 0 0 2px; }
+  h2 { font-size: 13.5pt; margin: 22px 0 6px; border-bottom: 1.5px solid #333;
+       padding-bottom: 3px; }
+  h3 { font-size: 11.5pt; margin: 14px 0 4px; }
+  p { margin: 5px 0; }
+  .subtitle { font-size: 12pt; color: #444; margin-bottom: 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9.5pt; }
+  th, td { border: 1px solid #999; padding: 4px 7px; text-align: left; vertical-align: top; }
+  th { background: #efefef; }
+  code, pre { font-family: "Courier New", monospace; font-size: 9.5pt; background: #f4f4f4; }
+  code { padding: 0 3px; }
+  pre { padding: 8px 10px; border: 1px solid #ddd; overflow-x: hidden; white-space: pre-wrap; }
+  ul { margin: 4px 0 8px; padding-left: 22px; }
+  li { margin: 2.5px 0; }
+  .pagebreak { page-break-before: always; }
+  img.uml { max-width: 100%; max-height: 24.2cm; display: block; margin: 8px auto; }
+  .titlebox { border: 2px solid #333; padding: 18px 22px; margin: 10px 0 18px; }
+</style>
+</head>
+<body>
+
+<div class="titlebox">
+<h1>Concurrent Real-Time Competition Leaderboard System</h1>
+<div class="subtitle">CS F213 — Object Oriented Programming · Project Part B Report</div>
+<table>
+<tr><th style="width:30%">Group</th><td>28</td></tr>
+<tr><th>Members</th><td>Aayush Rastogi (2023B2A30888H) · Shaan Sharma (2023B1AD0949H)</td></tr>
+<tr><th>Problem track</th><td>3 — Problem Solving with Algorithms and Data Structures</td></tr>
+<tr><th>Code repository</th><td>https://github.com/thegreatflash/oop-project-group28</td></tr>
+</table>
+</div>
+
+<h2>1. Problem definition</h2>
+<p>During multi-stage festival competitions (dance, debate, quiz), judges enter
+scores concurrently from tablets. The existing platform updates its leaderboard
+by recalculating every rank from scratch on each incoming score — an
+O(n&nbsp;log&nbsp;n) full re-sort — which causes visible lag exactly when load
+peaks (finals, several judges submitting at once). Our module replaces this
+with a thread-safe ranking engine whose cost per update is O(log&nbsp;n), plus
+a web interface for judges, participants, and administrators.</p>
+
+<h3>1.1 Inputs</h3>
+<ul>
+<li><code>data/participants.csv</code> — <code>competitionId, competitionName,
+participantId, participantName</code> (produced by the event-management module).</li>
+<li><code>data/judges.csv</code> — <code>judgeId, judgeName</code>.</li>
+<li>Score submissions <code>(competitionId, participantId, judgeName, value)</code>
+arriving concurrently from the Judge web page or the built-in load simulator.</li>
+</ul>
+
+<h3>1.2 Outputs</h3>
+<ul>
+<li>Live, ordered standings per competition (full board and Top-K), auto-refreshing
+in the browser every 3&nbsp;seconds.</li>
+<li><code>data/&lt;competition&gt;_leaderboard.csv</code> — exported standings for
+the festival backend.</li>
+<li><code>data/saved_scores.csv</code> — every judge's individual score, written on
+shutdown and restored on start (crash/restart recovery).</li>
+</ul>
+
+<h3>1.3 Constraints and scoring rules</h3>
+<ul>
+<li>Scores are whole numbers in [0,&nbsp;100]; anything else is rejected with a
+custom checked exception and never reaches the ranking engine.</li>
+<li>Each judge holds exactly <b>one</b> score per participant — resubmitting
+replaces the earlier value. A participant's displayed score is the
+<b>average</b> of their judges' scores with the decimal dropped, so it can
+never exceed 100.</li>
+<li>Ranking state must stay correct under concurrent writes with no global lock;
+readers must never block writers.</li>
+<li>Role-based access: participants view, judges score, administrators manage.</li>
+</ul>
+
+<h3>1.4 Success metrics</h3>
+<ul>
+<li>Correct, race-free rankings under concurrent submission — proven by JUnit
+stress tests (hundreds of parallel submissions, zero lost updates).</li>
+<li>Score update cost O(log&nbsp;n) reposition instead of O(n&nbsp;log&nbsp;n)
+re-sort; Top-K retrieval O(k).</li>
+<li>Leaderboard visible to viewers within one 3-second refresh cycle of a submission.</li>
+<li>State survives an application restart via file persistence.</li>
+</ul>
+
+<h3>1.5 Scope</h3>
+<p>As scoped for 2–3 weeks, the simulation runs 3 competitions × 20 participants
+with 3 judges. The engine itself is size-independent — the data structures and
+concurrency design are the deliverable, and the simulator can drive continuous
+load to demonstrate behaviour under concurrency.</p>
+
+<h2>2. System architecture</h2>
+<p>The application is a single Spring Boot process organised in four packages
+with a strict direction of dependency (web → core/io → model). The engine
+(<code>model</code>, <code>core</code>, <code>io</code>) is plain Java with no
+framework imports, so it is testable and reusable outside the web layer.</p>
+<table>
+<tr><th style="width:16%">Package</th><th style="width:42%">Classes</th><th>Responsibility</th></tr>
+<tr><td><code>model</code></td><td>Person (abstract), Participant, Judge,
+Competition, Score (record)</td><td>Domain objects; inheritance hierarchy and
+immutable score value.</td></tr>
+<tr><td><code>core</code></td><td>Leaderboard&lt;T&nbsp;extends&nbsp;Person&gt;,
+LeaderboardManager, ScoreProcessor, ScoreSimulator, Ranking&lt;T&gt; (record),
+InvalidScoreException</td><td>Ranking engine, concurrency, validation,
+observer notifications, load simulation.</td></tr>
+<tr><td><code>io</code></td><td>CSVManager</td><td>All file exchange: load
+participants/judges, export standings, save/restore judge scores.</td></tr>
+<tr><td><code>web</code></td><td>LeaderboardService, PageController,
+SecurityConfig</td><td>Spring layer: pages (Thymeleaf), JSON refresh endpoint,
+role-based access control.</td></tr>
+</table>
+
+<h3>2.1 Score lifecycle</h3>
+<ol style="margin:4px 0 8px; padding-left:22px;">
+<li>A judge submits the form (or the simulator generates a score).</li>
+<li><code>ScoreProcessor.submit()</code> validates on the caller's thread —
+out-of-range or non-integer values throw <code>InvalidScoreException</code>
+immediately, so the judge sees the error at once.</li>
+<li>Valid scores are executed on a fixed 3-thread <code>ExecutorService</code>
+(producer–consumer: the pool's queue is the buffer).</li>
+<li><code>Leaderboard.addScore()</code> stores the judge's value and repositions
+that one participant in the ordered index — O(log&nbsp;n).</li>
+<li><code>LeaderboardManager</code> fires a <code>PropertyChangeEvent</code>
+(observer pattern); the browser picks up the new standings on its next poll.</li>
+</ol>
+
+<h2>3. Core design: incremental ranking and concurrency</h2>
+<h3>3.1 Data structures</h3>
+<p>Two structures cooperate inside <code>Leaderboard&lt;T&nbsp;extends&nbsp;Person&gt;</code>:</p>
+<ul>
+<li><b><code>ConcurrentHashMap&lt;T, Map&lt;String, Double&gt;&gt;</code></b> —
+participant → (judge → latest score). Holds the authoritative scoring data.</li>
+<li><b><code>ConcurrentSkipListMap&lt;RankKey, T&gt;</code></b> — the live
+ranking index, keyed by <code>(score&nbsp;desc, name, id)</code>. The id makes keys
+unique even for equal names and scores.</li>
+</ul>
+<p>A score update removes the participant's old key and inserts the new one —
+two O(log&nbsp;n) operations. Reading the standings is a walk of the
+already-ordered map (no sorting on the read path), and <code>getTopK(k)</code>
+returns the first k entries in O(k).</p>
+<table>
+<tr><th>Operation</th><th>Naive design</th><th>This design</th></tr>
+<tr><td>Score update</td><td>O(n log n) full re-sort</td><td>O(log n) reposition</td></tr>
+<tr><td>Ranking refresh</td><td>Full recomputation</td><td>Walk of ordered index</td></tr>
+<tr><td>Top-K retrieval</td><td>Sort then slice</td><td>O(k) prefix read</td></tr>
+<tr><td>Concurrent updates</td><td>Global lock, writers serialise</td>
+<td>Per-participant locking, parallel across participants</td></tr>
+</table>
+
+<h3>3.2 Thread-safety strategy</h3>
+<p>Every update runs inside <code>ConcurrentHashMap.compute()</code>, which
+locks only that participant's entry. Two judges scoring the <i>same</i>
+participant are applied strictly one after the other — so the skip-list
+reposition can never leave a stale key — while judges scoring <i>different</i>
+participants proceed fully in parallel. There is no <code>synchronized</code>
+block and no global lock anywhere; readers (the standings walk) never block
+writers. Spring Boot's request threads plus the 3-worker pool mean submissions
+genuinely arrive concurrently, which is exactly what the stress tests exercise.</p>
+
+<h2>4. Security design</h2>
+<p>Spring Security provides form login with three roles backed by an in-memory
+user store (passwords BCrypt-hashed):</p>
+<table>
+<tr><th>Accounts</th><th>Role</th><th>Access</th></tr>
+<tr><td>participant1–3 / 1234</td><td>PARTICIPANT</td><td>Home, live leaderboard</td></tr>
+<tr><td>judge1–3 / 1234</td><td>JUDGE</td><td>+ Judge page (submit scores)</td></tr>
+<tr><td>admin / 1234</td><td>ADMIN</td><td>+ Admin page (reset, export, simulator)</td></tr>
+</table>
+<p>URL rules live in <code>SecurityConfig</code> (<code>/judge/**</code> requires
+JUDGE or ADMIN, <code>/admin/**</code> requires ADMIN). Unauthorised access
+returns 403.</p>
+
+<h2>5. Advanced Java features used</h2>
+<p>Each feature below corresponds to a unit of the CS F213 syllabus — the
+collections framework, multithreading and concurrency, generics, exception
+handling, file I/O, lambda expressions, and design patterns, as covered in the
+course lectures and handout.</p>
+<table>
+<tr><th style="width:26%">Feature</th><th>Where and why</th></tr>
+<tr><td>Collections framework &amp; concurrent collections</td>
+<td><code>ConcurrentHashMap</code> (scores, competitions),
+<code>ConcurrentSkipListMap</code> (ordered ranking index) — lock-free reads,
+fine-grained locked writes; plus <code>List</code>/<code>Map</code> throughout.</td></tr>
+<tr><td>Multithreading</td>
+<td>Fixed-pool <code>ExecutorService</code> for score processing;
+<code>ScheduledExecutorService</code> driving the simulator;
+<code>CountDownLatch</code> in the concurrency tests; atomic
+<code>compute()</code> updates.</td></tr>
+<tr><td>Generics</td>
+<td><code>Leaderboard&lt;T extends Person&gt;</code> and
+<code>Ranking&lt;T&gt;</code> — bounded type parameter lets the same engine rank
+any person type without casting.</td></tr>
+<tr><td>Exception handling</td>
+<td>Custom checked <code>InvalidScoreException</code>; validation before
+queueing so a bad input can never corrupt shared state; graceful handling of
+malformed CSV rows.</td></tr>
+<tr><td>File I/O</td>
+<td><code>java.nio.file</code> in <code>CSVManager</code>: load, export,
+save/restore across restarts.</td></tr>
+<tr><td>Records &amp; immutability</td>
+<td><code>Score</code>, <code>Ranking</code>, <code>RankKey</code> — immutable
+data passed safely between threads.</td></tr>
+<tr><td>Lambdas &amp; method references</td>
+<td>Executor tasks, <code>compute()</code> remapping functions, comparators,
+stream mapping in the JSON endpoint.</td></tr>
+<tr><td>Design patterns</td>
+<td>Observer (<code>PropertyChangeSupport</code> in
+<code>LeaderboardManager</code>), Producer–Consumer (submission pipeline), MVC
+(Spring controller/service/templates), dependency injection.</td></tr>
+<tr><td>Framework: Spring Boot + Spring Security</td>
+<td>Embedded web server, Thymeleaf templating, role-based access control,
+BCrypt password hashing.</td></tr>
+</table>
+
+<h2>6. Integration with the festival platform</h2>
+<p>Integration is file-based (one of the modes permitted by the specification):
+the module consumes CSVs that the event-management/registration modules would
+produce, and emits CSVs the dashboard and analytics modules can ingest. The
+JSON endpoint (<code>/api/leaderboard?competition=&lt;id&gt;[&amp;top=k]</code>)
+additionally provides a REST-style read interface that a mobile app could poll.
+Swapping CSV exchange for REST or JDBC would only touch <code>CSVManager</code>
+and the service layer — the engine is unaware of the transport.</p>
+
+<h2>7. Testing</h2>
+<p><code>mvn test</code> runs <b>20 JUnit&nbsp;5 tests</b>, all passing:</p>
+<table>
+<tr><th style="width:30%">Test class</th><th>Coverage</th></tr>
+<tr><td>LeaderboardTest (8)</td><td>Average-of-judges scoring, same-judge
+replacement, rank ordering and overtaking, Top-K, ties by name, reset keeping
+participants, bounds never exceeding 100.</td></tr>
+<tr><td>ScoreProcessorTest (5)</td><td>Rejection of negative, &gt;100 and
+non-integer scores; boundary values 0 and 100 accepted; rejected scores leave
+the board untouched.</td></tr>
+<tr><td>ConcurrentSubmissionTest (3)</td><td>Hundreds of submissions from up to
+8 threads: no lost updates through the processor pipeline; skip-list index
+stays consistent (each participant exactly once, correct order) under
+concurrent repositioning.</td></tr>
+<tr><td>CSVManagerTest (4)</td><td>Loading with comment/blank/malformed rows,
+judge loading, export format and rank order, save→restart→restore round trip.</td></tr>
+</table>
+
+<h2>8. Code repository and how to run</h2>
+<p>Full source, unit tests, sample data, UML and this report:
+<b>https://github.com/thegreatflash/oop-project-group28</b>.
+Requires JDK&nbsp;21+; Maven is not needed (the bundled wrapper downloads it).</p>
+<pre>git clone https://github.com/thegreatflash/oop-project-group28
+cd oop-project-group28
+./mvnw spring-boot:run     # then open http://localhost:8080
+./mvnw test                # run the 20 unit tests</pre>
+<p>Run from the project root so the <code>data/</code> folder is found, and sign
+in with the accounts from section&nbsp;4 (e.g. <code>admin&nbsp;/&nbsp;1234</code>).
+To run with no local setup: repository page →
+<b>Code&nbsp;→&nbsp;Codespaces&nbsp;→&nbsp;Create codespace on main</b>, then the
+same commands in its terminal (open forwarded port 8080). To demonstrate the
+simulated integration environment, start the simulator from the Admin page and
+watch the leaderboard reorder; exports land in <code>data/</code> as CSV. Full
+step-by-step detail is in <code>HOW_TO_RUN.md</code> in the repository.</p>
+
+<h2>9. Technology stack</h2>
+<ul>
+<li><b>Java 21</b> (records, lambdas, concurrent collections) · <b>Maven</b> with wrapper</li>
+<li><b>Spring Boot 3.3</b> (web, Thymeleaf) · <b>Spring Security</b> (roles, BCrypt)</li>
+<li><b>JUnit 5</b> for tests · <b>PlantUML</b> for the class diagram</li>
+<li><b>GitHub + Codespaces</b> for hosting, collaboration and cloud runs</li>
+<li>AI-assisted development tooling was used during implementation, as permitted
+by the project guidelines encouraging modern technology use.</li>
+</ul>
+
+<h2>10. Innovations beyond the base requirements</h2>
+<ul>
+<li>Incremental O(log&nbsp;n) ranking with O(k) Top-K, demonstrated live in the UI.</li>
+<li>Role-based security with three user classes.</li>
+<li>Built-in concurrent load simulator for demonstrations and stress testing.</li>
+<li>Restart-safe persistence of every judge's individual score.</li>
+<li>Judge-score semantics (replace + average) preventing score inflation.</li>
+</ul>
+
+<h2>11. Member contributions</h2>
+<table>
+<tr><th style="width:25%">Member</th><th>Modules / responsibility</th></tr>
+<tr><td>Aayush Rastogi<br>(2023B2A30888H)</td><td>Domain model and core ranking
+engine: the <code>Leaderboard</code> skip-list design and scoring rules,
+<code>ScoreProcessor</code> thread pool and validation, observer wiring in
+<code>LeaderboardManager</code>; Home, Leaderboard and Judge pages with the
+auto-refresh script; concurrency and ranking unit tests.</td></tr>
+<tr><td>Shaan Sharma<br>(2023B1AD0949H)</td><td>Security module
+(<code>SecurityConfig</code>, roles, login page) and UI theme; Admin module
+with reset/export and the load simulator; <code>CSVManager</code> file
+integration and restart persistence; CSV and score-validation unit tests;
+report and demo preparation.</td></tr>
+</table>
+
+<div class="pagebreak"></div>
+<h2>Appendix A — UML class diagram</h2>
+<img class="uml" src="uml.png" alt="UML class diagram">
+
+</body>
+</html>
