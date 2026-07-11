@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="'Leaderboard — ' + ${selected.name}">Live Leaderboard</title>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body>
+<nav>
+    <a href="/" class="nav-brand">
+        <div class="nav-logo-box">LB</div>
+        <span class="nav-brand-text">LEADER<span>BOARD</span></span>
+    </a>
+    <a href="/">Home</a>
+    <a href="/leaderboard" class="active">Live Scores</a>
+    <a href="/judge" sec:authorize="hasAnyRole('JUDGE','ADMIN')">Submit Score</a>
+    <a href="/admin" sec:authorize="hasRole('ADMIN')">Admin</a>
+    <span sec:authorize="hasRole('ADMIN')"       class="nav-role-badge badge-admin">Admin</span>
+    <span sec:authorize="hasRole('JUDGE')"        class="nav-role-badge badge-judge">Judge</span>
+    <span sec:authorize="hasRole('PARTICIPANT')"  class="nav-role-badge badge-participant">Participant</span>
+    <form th:action="@{/logout}" method="post" class="nav-logout-form">
+        <button type="submit" class="nav-logout">Sign out</button>
+    </form>
+</nav>
+<main>
+    <h1 th:text="${selected.name}">Live Leaderboard</h1>
+    <div class="page-accent-bar bar-teal"></div>
+    <div class="lb-controls">
+        <label>Competition
+            <select onchange="location.href='/leaderboard?competition=' + this.value">
+                <option th:each="c : ${competitions}" th:value="${c.id}" th:text="${c.name}" th:selected="${c.id == selected.id}">Competition</option>
+            </select>
+        </label>
+        <label>Show
+            <select id="topSelect">
+                <option value="">All</option>
+                <option value="5">Top 5</option>
+                <option value="10">Top 10</option>
+            </select>
+        </label>
+        <div class="live-badge"><span class="live-dot"></span> LIVE</div>
+    </div>
+    <div class="table-wrap">
+        <table th:attr="data-competition=${selected.id}" id="board">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Participant</th>
+                    <th sec:authorize="hasAnyRole('JUDGE','ADMIN')">Avg Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="row : ${rankings}" th:attr="data-rank=${row.rank}">
+                    <td class="rank-cell" th:text="${row.rank}">1</td>
+                    <td th:text="${row.entrant.name}">Name</td>
+                    <td class="score-cell" sec:authorize="hasAnyRole('JUDGE','ADMIN')"
+                        th:text="${#numbers.formatInteger(row.score, 1)}">0</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div sec:authorize="hasRole('PARTICIPANT')" class="alert alert-success" style="margin-top:16px; margin-bottom:0;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M8 5v4M8 10.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        You're viewing as a participant — scores are visible to judges and admins only.
+    </div>
+    <div class="last-updated">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#6b72a0" stroke-width="1.2"/>
+            <path d="M7 4v3l2 1.5" stroke="#6b72a0" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        Last updated: <span id="updated" th:text="${lastUpdated}">—</span>
+    </div>
+</main>
+<script th:src="@{/leaderboard.js}"></script>
+</body>
+</html>

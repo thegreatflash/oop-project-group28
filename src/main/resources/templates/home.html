@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Home — Competition Leaderboard</title>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body>
+<nav>
+    <a href="/" class="nav-brand">
+        <div class="nav-logo-box">LB</div>
+        <span class="nav-brand-text">LEADER<span>BOARD</span></span>
+    </a>
+    <a href="/" class="active">Home</a>
+    <a href="/leaderboard">Live Scores</a>
+    <a href="/judge" sec:authorize="hasAnyRole('JUDGE','ADMIN')">Submit Score</a>
+    <a href="/admin" sec:authorize="hasRole('ADMIN')">Admin</a>
+    <span sec:authorize="hasRole('ADMIN')"       class="nav-role-badge badge-admin">Admin</span>
+    <span sec:authorize="hasRole('JUDGE')"        class="nav-role-badge badge-judge">Judge</span>
+    <span sec:authorize="hasRole('PARTICIPANT')"  class="nav-role-badge badge-participant">Participant</span>
+    <form th:action="@{/logout}" method="post" class="nav-logout-form">
+        <button type="submit" class="nav-logout">Sign out</button>
+    </form>
+</nav>
+<main>
+    <h1>Competitions</h1>
+    <div class="page-accent-bar bar-violet"></div>
+    <div class="stat-strip">
+        <div class="stat-pill pill-violet"><strong th:text="${#lists.size(competitions)}">0</strong> events running</div>
+        <div class="stat-pill pill-teal"><strong th:text="${judgeCount}">0</strong> judges active</div>
+        <div class="stat-pill pill-amber"><strong>LIVE</strong> updates every 3s</div>
+    </div>
+    <ul class="cards">
+        <li th:each="c, iter : ${competitions}"
+            th:class="${iter.index % 3 == 0 ? 'card card-violet' : (iter.index % 3 == 1 ? 'card card-teal' : 'card card-pink')}">
+            <div class="card-eyebrow" th:text="'EVENT ' + ${iter.index + 1}">EVENT 1</div>
+            <div class="card-title" th:text="${c.name}">Competition</div>
+            <div class="card-meta"><span th:text="${#lists.size(c.participants)}">0</span> participants</div>
+            <a th:class="${iter.index % 3 == 1 ? 'btn btn-teal' : 'btn btn-primary'}"
+               th:href="@{/leaderboard(competition=${c.id})}">View Leaderboard →</a>
+        </li>
+    </ul>
+</main>
+</body>
+</html>
