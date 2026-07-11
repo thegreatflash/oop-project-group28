@@ -1,0 +1,7 @@
+target/
+data/saved_scores.csv
+data/*_leaderboard.csv
+.DS_Store
+.claude/
+.idea/
+docs/video-script-aayush.md

@@ -1,0 +1,11 @@
+{
+  "name": "Competition Leaderboard",
+  "image": "mcr.microsoft.com/devcontainers/java:21",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "Leaderboard app",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
