@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign In — Competition Leaderboard</title>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body>
+<div class="login-root">
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="login-logo-mark">LB</div>
+            <div>
+                <div class="login-logo-name">Competition Leaderboard</div>
+                <div class="login-logo-sub">Group 28 · CS F213</div>
+            </div>
+        </div>
+        <div class="login-heading">Sign in</div>
+        <p class="login-sub">Select your role to see the right credentials.</p>
+
+        <div th:if="${param.error}" class="alert alert-error">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M8 5v3M8 10.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+            Invalid username or password.
+        </div>
+        <div th:if="${param.logout}" class="alert alert-success">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Signed out successfully.
+        </div>
+
+        <div class="role-tabs">
+            <button class="role-tab t-participant active" onclick="setRole('participant', this)">Participant</button>
+            <button class="role-tab t-judge"              onclick="setRole('judge', this)">Judge</button>
+            <button class="role-tab t-admin"              onclick="setRole('admin', this)">Admin</button>
+        </div>
+
+        <div class="role-hint hint-participant" id="roleHint">
+            View live leaderboards and your own standings.
+        </div>
+        <div class="creds-hint" id="credsHint">
+            Try <code>participant1</code> / <code>1234</code>
+        </div>
+
+        <form method="post" th:action="@{/login}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="e.g. participant1" autocomplete="username" autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="••••" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn-primary login-btn">Sign in →</button>
+        </form>
+    </div>
+</div>
+<script>
+    const config = {
+        participant: { hint: 'View live leaderboards. Judge score details are hidden.', creds: 'Try <code>participant1</code> / <code>1234</code>', hintClass: 'hint-participant' },
+        judge:       { hint: 'Submit and update scores for participants across all competitions.', creds: 'Try <code>judge1</code> / <code>1234</code>', hintClass: 'hint-judge' },
+        admin:       { hint: 'Full access — manage competitions, export data, run the simulator.', creds: 'Use <code>admin</code> / <code>1234</code>', hintClass: 'hint-admin' }
+    };
+    function setRole(role, el) {
+        document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        const rh = document.getElementById('roleHint');
+        rh.className = 'role-hint ' + config[role].hintClass;
+        rh.textContent = config[role].hint;
+        document.getElementById('credsHint').innerHTML = config[role].creds;
+    }
+</script>
+</body>
+</html>
